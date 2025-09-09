@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="src/assets/style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css"
+    />
+    <title>WEBCOSMIC - Web Nature Earth - Online Planet Viewer</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <div class="header">
+      <div class="text">
+        <div><i class="fa fa-globe" style="font-size: 24px"></i></div>
+        <div>WEB NATURE EARTH</div>
+      </div>
+      <div class="headbutton">
+        <button id="setting">⏣</button>
+        <button id="account">👤</button>
+        <button id="home">🏠︎</button>
+      </div>
+    </div>
+
+    <div class="middle">
+      <div class="side" id="side">
+        <button class="menubutton" data-planet="earth">Earth</button>
+        <button class="menubutton" data-planet="moon">Moon</button>
+        <button class="menubutton" data-planet="mars">Mars</button>
+        <button class="menubutton" data-planet="venus">Venus</button>
+        <button class="menubutton" data-planet="saturn">Saturn</button>
+        <button class="menubutton" data-planet="jupiter">Jupiter</button>
+        <button class="menubutton" data-planet="sun">Sun</button>
+      </div>
+
+      <div class="main">
+        <div id="canvas"></div>
+      </div>
+    </div>
+
+    <div class="footer">2025 Copyright - MUST SICT - B231880007</div>
+
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
