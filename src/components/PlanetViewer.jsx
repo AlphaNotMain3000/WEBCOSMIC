@@ -1,16 +1,17 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader";
 
+// Define planets and their model paths (relative to /public/models/)
 const PLANETS = [
-  { name: "Earth", file: "../models/earth.glb" },
-  { name: "Moon", file: "../models/moon.glb" },
-  { name: "Mars", file: "../models/mars.glb" },
-  { name: "Venus", file: "../models/venus.glb" },
-  { name: "Saturn", file: "../models/saturn.glb" },
-  { name: "Jupiter", file: "../models/jupiter.glb" },
-  { name: "Sun", file: "../models/sun.glb" },
+  { name: "Earth", file: "/models/earth.glb" },
+  { name: "Moon", file: "/models/moon.glb" },
+  { name: "Mars", file: "/models/mars.glb" },
+  { name: "Venus", file: "/models/venus.glb" },
+  { name: "Saturn", file: "/models/saturn.glb" },
+  { name: "Jupiter", file: "/models/jupiter.glb" },
+  { name: "Sun", file: "/models/sun.glb" },
 ];
 
 const PlanetViewer = () => {
@@ -21,14 +22,19 @@ const PlanetViewer = () => {
   const controlsRef = useRef();
   const planetRef = useRef();
   const loader = new GLTFLoader();
+  const [loading, setLoading] = useState(false);
+  const [activePlanet, setActivePlanet] = useState("Earth");
+  const initializedRef = useRef(false);
 
   useEffect(() => {
-    // Setup scene
+     if (initializedRef.current) return; // prevent double initialization
+    initializedRef.current = true;
+    // === Setup Scene ===
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x000000);
     sceneRef.current = scene;
 
-    // Camera
+    // === Setup Camera ===
     const camera = new THREE.PerspectiveCamera(
       60,
       mountRef.current.clientWidth / mountRef.current.clientHeight,
@@ -38,7 +44,7 @@ const PlanetViewer = () => {
     camera.position.set(0, 1, 3);
     cameraRef.current = camera;
 
-    // Renderer
+    // === Setup Renderer ===
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(
       mountRef.current.clientWidth,
@@ -47,30 +53,27 @@ const PlanetViewer = () => {
     mountRef.current.appendChild(renderer.domElement);
     rendererRef.current = renderer;
 
-    // Lighting
+    // === Lighting ===
     const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
     dirLight.position.set(5, 5, 5);
     scene.add(dirLight);
     scene.add(new THREE.AmbientLight(0x404040));
 
-    // Controls
+    // === Controls ===
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controlsRef.current = controls;
 
-    // Load default planet
-    loadPlanet("earth.glb");
-
-    // Animation loop
+    // === Animation Loop ===
     const animate = () => {
       requestAnimationFrame(animate);
-      if (planetRef.current) planetRef.current.rotation.y += 0.002;
+      if (planetRef.current) planetRef.current.rotation.y += 0.001;
       controls.update();
       renderer.render(scene, camera);
     };
     animate();
 
-    // Resize handler
+    // === Handle Resize ===
     const handleResize = () => {
       if (!mountRef.current) return;
       camera.aspect =
@@ -83,9 +86,27 @@ const PlanetViewer = () => {
     };
     window.addEventListener("resize", handleResize);
 
-    // Cleanup
+    const menuButtons = document.querySelectorAll(".menubutton");
+    menuButtons.forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        const planet = e.target.dataset.planet;
+        if (!planet) return;
+        const match = PLANETS.find(
+          (p) => p.name.toLowerCase() === planet.toLowerCase()
+        );
+        if (match) {
+          setActivePlanet(match.name);
+          loadPlanet(match.file);
+        }
+      });
+    });
+
+    // === Cleanup ===
     return () => {
       window.removeEventListener("resize", handleResize);
+      menuButtons.forEach((btn) =>
+        btn.removeEventListener("click", () => {})
+      );
       if (mountRef.current && renderer.domElement) {
         mountRef.current.removeChild(renderer.domElement);
       }
@@ -94,7 +115,7 @@ const PlanetViewer = () => {
     // eslint-disable-next-line
   }, []);
 
-  // Helper: dispose previous model
+  // === Dispose Helper ===
   function disposeObject3D(obj) {
     obj.traverse((child) => {
       if (child.isMesh) {
@@ -111,7 +132,7 @@ const PlanetViewer = () => {
     });
   }
 
-  // Helper: center and scale model
+  // === Center & Scale Model ===
   function centerAndFit(object) {
     const box = new THREE.Box3().setFromObject(object);
     const size = new THREE.Vector3();
@@ -124,58 +145,116 @@ const PlanetViewer = () => {
     object.scale.setScalar(scale);
   }
 
-  // Load a planet GLB
-  function loadPlanet(file) {
+  // === Load Planet ===
+  const loadPlanet = (() => {
+  let currentLoadId = 0;
+
+  return (file) => {
     if (!sceneRef.current) return;
+    setLoading(true);
+
+    const loadId = ++currentLoadId;
+
+    // Remove previous planet
     if (planetRef.current) {
       sceneRef.current.remove(planetRef.current);
       disposeObject3D(planetRef.current);
       planetRef.current = null;
     }
+
     loader.load(
-      `/models/${file}`,
+      file,
       (gltf) => {
+        // Ignore if another load started meanwhile
+        if (loadId !== currentLoadId) {
+          disposeObject3D(gltf.scene);
+          return;
+        }
+
         const planet = gltf.scene;
+
+        planet.traverse((child) => {
+          if (child.isMesh) {
+            const map = child.material?.map || null;
+            child.material = new THREE.MeshStandardMaterial({
+              map,
+              roughness: 0.7,
+              metalness: 0.1,
+              emissive: new THREE.Color(0x000000),
+            });
+            if (map) {
+              map.colorSpace = THREE.SRGBColorSpace;
+              map.needsUpdate = true;
+            }
+          }
+        });
+
         centerAndFit(planet);
         sceneRef.current.add(planet);
         planetRef.current = planet;
+        setLoading(false);
       },
       undefined,
-      (err) => console.error("GLB load error:", err)
+      (err) => {
+        if (loadId === currentLoadId) setLoading(false);
+        console.error("GLB load error:", err);
+      }
     );
-  }
+  };
+})();
 
-  // Button click handler
-  const handlePlanetClick = (file) => {
-    loadPlanet(file);
+
+
+  // === Handle Planet Button Click ===
+  const handlePlanetClick = (p) => {
+    setActivePlanet(p.name);
+    loadPlanet(p.file);
   };
 
   return (
-    <div style={{ width: "100%", height: "100%" }}>
+    <div style={{ padding: "5%", width: "50em", height: "100%", color: "#fff" }}>
+      {/* Planet Buttons */}
       <div
         style={{
           display: "flex",
-          flexDirection: "row",
+          flexWrap: "wrap",
           gap: 8,
-          marginBottom: 8,
+          justifyContent: "center",
+          marginBottom: 12,
         }}
       >
-        {PLANETS.map((p) => (
-          <button key={p.name} onClick={() => handlePlanetClick(p.file)}>
-            {p.name}
-          </button>
-        ))}
       </div>
+
+      {/* 3D Canvas */}
       <div
-        id="canvas"
         ref={mountRef}
         style={{
           width: "100%",
           height: "600px",
-          background: "#c7efdc",
+          background: "#0a0a0a",
           borderRadius: 12,
+          position: "relative",
         }}
-      ></div>
+      >
+        {/* Loading Spinner */}
+        {loading && (
+          <div
+            style={{
+              position: "absolute",
+              top: "50%",
+              left: "50%",
+              transform: "translate(-50%, -50%)",
+              color: "#fff",
+              fontSize: 18,
+              background: "rgba(0,0,0,0.6)",
+              padding: "12px 24px",
+              borderRadius: 8,
+            }}
+          >
+            Loading...
+          </div>
+        )}
+      </div>
     </div>
   );
 };
